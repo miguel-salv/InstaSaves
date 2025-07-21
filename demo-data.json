@@ -1,0 +1,32 @@
+[
+  {
+    "id": "post_1",
+    "instagramUrl": "https://www.instagram.com/p/abc123/",
+    "imageUrl": "https://via.placeholder.com/400x400.png?text=Post+1",
+    "caption": "A beautiful sunset at the beach. #sunset #beach",
+    "author": "user_one",
+    "tags": ["sunset", "beach"],
+    "timestamp": "2023-12-01T18:30:00Z",
+    "extractedAt": "2024-06-01T12:00:00Z"
+  },
+  {
+    "id": "post_2",
+    "instagramUrl": "https://www.instagram.com/p/def456/",
+    "imageUrl": "https://via.placeholder.com/400x400.png?text=Post+2",
+    "caption": "Delicious homemade pizza! #foodie #pizza",
+    "author": "chef_life",
+    "tags": ["foodie", "pizza"],
+    "timestamp": "2024-01-15T14:20:00Z",
+    "extractedAt": "2024-06-01T12:00:00Z"
+  },
+  {
+    "id": "post_3",
+    "instagramUrl": "https://www.instagram.com/p/ghi789/",
+    "imageUrl": "https://via.placeholder.com/400x400.png?text=Post+3",
+    "caption": "Exploring the mountains. #adventure #hiking",
+    "author": "mountain_go",
+    "tags": ["adventure", "hiking"],
+    "timestamp": "2024-02-10T09:10:00Z",
+    "extractedAt": "2024-06-01T12:00:00Z"
+  }
+] 

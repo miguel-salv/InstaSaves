@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>InstaSaves Library</title>
+  <link rel="stylesheet" href="library.css">
+</head>
+<body>
+  <header class="header">
+    <h1 class="title">InstaSaves</h1>
+    <div class="header-actions">
+      <input type="text" id="search-input" class="search-input" placeholder="Search saved posts...">
+      <select id="sort-select" class="sort-select">
+        <option value="newest-saved">Recently Saved</option>
+        <option value="oldest-saved">Oldest Saved</option>
+        <option value="newest-posted">Recently Posted</option>
+        <option value="oldest-posted">Oldest Posted</option>
+      </select>
+      <button id="sync-btn" class="sync-btn">Sync with Instagram</button>
+      <button id="clear-data-btn" class="header-btn clear-btn">Clear Data</button>
+    </div>
+  </header>
+
+  <main class="main-content">
+    <aside class="sidebar">
+      <div class="sidebar-section">
+        <h2 class="sidebar-title">Collections</h2>
+        <div id="collections-list" class="collections-list"></div>
+      </div>
+      <div class="sidebar-section">
+        <h2 class="sidebar-title">Tags</h2>
+        <div id="tags-list" class="tags-list"></div>
+      </div>
+    </aside>
+    <div id="posts-grid" class="posts-grid"></div>
+  </main>
+
+  <script src="library.js"></script>
+</body>
+</html> 
