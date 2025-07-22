@@ -12,6 +12,59 @@ let clearDataBtn;
 let syncBtn;
 let collectionsListEl;
 let tagsListEl;
+let modal;
+let modalCloseBtn;
+
+// Initialize modal
+function initializeModal() {
+  if (!document.getElementById('post-modal')) {
+    const modalHTML = `
+      <div class="modal-overlay" id="post-modal">
+        <div class="modal-card">
+          <button class="modal-close" type="button">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+          <div class="modal-image-container">
+            <img class="modal-image" src="" alt="">
+          </div>
+          <div class="modal-content">
+            <div class="modal-header">
+              <div class="modal-author"></div>
+            </div>
+            <div class="modal-caption"></div>
+            <div class="modal-dates"></div>
+            <div class="modal-metadata">
+              <div class="modal-collections">
+                <div class="modal-section-title">Collections</div>
+                <div class="post-collections"></div>
+              </div>
+              <div class="modal-tags">
+                <div class="modal-section-title">Tags</div>
+                <div class="post-tags"></div>
+              </div>
+              <div class="modal-quick-actions"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+    // Initialize modal elements
+    modal = document.getElementById('post-modal');
+    modalCloseBtn = modal.querySelector('.modal-close');
+
+    // Add event listeners for modal
+    modalCloseBtn.addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        closeModal();
+      }
+    });
+  }
+}
 
 document.addEventListener('DOMContentLoaded', async () => {
   // Initialize DOM elements
@@ -28,6 +81,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.error('Some required elements are missing from the DOM');
     return;
   }
+
+  // Initialize modal
+  initializeModal();
 
   // Event Listeners
   syncBtn.addEventListener('click', async () => {
@@ -64,41 +120,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderPosts();
   });
 
-  // Create modal container
-  if (!document.getElementById('post-modal')) {
-    const modalHTML = `
-      <div class="modal-overlay" id="post-modal">
-        <div class="modal-card">
-          <button class="modal-close" onclick="closeModal()">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-          <div class="modal-image-container">
-            <img class="modal-image" src="" alt="">
-          </div>
-          <div class="modal-content">
-            <div class="modal-header">
-              <div class="modal-author"></div>
-            </div>
-            <div class="modal-caption"></div>
-            <div class="modal-metadata">
-              <div class="modal-collections">
-                <div class="modal-section-title">Collections</div>
-                <div class="post-collections"></div>
-              </div>
-              <div class="modal-tags">
-                <div class="modal-section-title">Tags</div>
-                <div class="post-tags"></div>
-              </div>
-              <a href="" target="_blank" class="view-link">View on Instagram</a>
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
-    document.body.insertAdjacentHTML('beforeend', modalHTML);
-  }
+  // Add escape key handler
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      closeModal();
+    }
+  });
 
   // Load initial data
   await loadData();
@@ -118,7 +145,84 @@ async function loadData() {
   }
 }
 
-// Render functions
+// Function to load image through proxy
+async function loadProxiedImage(imgElement, originalUrl) {
+  try {
+    const response = await chrome.runtime.sendMessage({
+      action: 'proxyImage',
+      url: originalUrl
+    });
+    
+    if (response.error) {
+      throw new Error(response.error);
+    }
+    
+    imgElement.src = response.dataUrl;
+  } catch (error) {
+    console.error('Error loading image:', error);
+    imgElement.src = imgElement.dataset.fallback;
+  }
+}
+
+function formatDate(dateString) {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  return date.toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+}
+
+function renderPostTypeIndicator(post) {
+  if (post.isVideo) {
+    return `
+      <div class="post-type-indicator">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M8 6.82v10.36c0 .79.87 1.27 1.54.84l8.14-5.18c.62-.39.62-1.29 0-1.69L9.54 5.98C8.87 5.55 8 6.03 8 6.82z"/>
+        </svg>
+        Video
+      </div>
+    `;
+  }
+  return '';
+}
+
+function renderQuickActions(post) {
+  return `
+    <div class="quick-actions">
+      <button class="quick-action-btn copy-link" data-url="${post.instagramUrl}">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
+        </svg>
+        Copy Link
+      </button>
+      <a href="${post.instagramUrl}" target="_blank" class="quick-action-btn">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/>
+        </svg>
+        Open in Instagram
+      </a>
+    </div>
+  `;
+}
+
+function renderDates(post) {
+  return `
+    <div class="post-dates">
+      <div class="post-date">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z"/>
+          <path d="M12.5 7H11v6l5.25 3.15.75-1.23-4.5-2.67z"/>
+        </svg>
+        Posted: ${formatDate(post.createdAt)}
+      </div>
+    </div>
+  `;
+}
+
 function renderPosts() {
   if (!postsGrid) return;
 
@@ -128,99 +232,96 @@ function renderPosts() {
   const sortValue = sortSelect.value;
   switch (sortValue) {
     case 'newest-saved':
-      // Keep original order (most recent first)
-      filteredPosts = [...filteredPosts];
+      filteredPosts = filteredPosts.sort((a, b) => new Date(b.savedAt) - new Date(a.savedAt));
       break;
     case 'oldest-saved':
-      // Reverse the order for oldest first
-      filteredPosts = [...filteredPosts].reverse();
+      filteredPosts = filteredPosts.sort((a, b) => new Date(a.savedAt) - new Date(b.savedAt));
       break;
     case 'newest-posted':
-      filteredPosts.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      filteredPosts = filteredPosts.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
       break;
     case 'oldest-posted':
-      filteredPosts.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+      filteredPosts = filteredPosts.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
       break;
   }
 
-  // Add debug logging for sorting
-  console.log('Sorted posts:', filteredPosts.map(post => ({
-    id: post.id,
-    savedAt: post.savedAt,
-    createdAt: post.createdAt,
-    caption: post.caption.slice(0, 30)
-  })));
-
-  // Render posts
   postsGrid.innerHTML = filteredPosts.map((post, index) => `
-    <div class="post-card">
-      <img class="post-image" src="${post.imageUrl}" alt="${post.caption}">
+    <div class="post-card" data-index="${index}" role="button" tabindex="0">
+      <div class="post-image-container">
+        ${renderPostTypeIndicator(post)}
+        <img 
+          class="post-image" 
+          src="icons/icon128.png"
+          data-original-url="${post.imageUrl}"
+          alt="${post.caption}"
+          data-fallback="icons/icon128.png"
+          loading="lazy"
+        >
+      </div>
       <div class="post-info">
         ${post.author ? `<div class="post-author">${post.author}</div>` : ''}
-        <div class="post-caption collapsed">
+        <div class="post-caption">
           <div class="post-caption-content">${post.caption ? post.caption.slice(0, 100) + '...' : ''}</div>
         </div>
-        ${post.caption ? `
-          <button class="post-expand-btn" data-index="${index}">
-            View more
-          </button>
-        ` : ''}
-        <a href="${post.instagramUrl}" target="_blank" class="view-link">View on Instagram</a>
+        ${renderDates(post)}
+        ${renderQuickActions(post)}
       </div>
     </div>
   `).join('');
 
-  // Add event listeners to expand buttons
-  document.querySelectorAll('.post-expand-btn').forEach(button => {
-    button.addEventListener('click', () => {
-      const index = button.dataset.index;
+  // Load images through proxy
+  document.querySelectorAll('.post-image').forEach(img => {
+    if (img.dataset.originalUrl) {
+      loadProxiedImage(img, img.dataset.originalUrl);
+    }
+  });
+
+  // Add click handlers to post cards
+  document.querySelectorAll('.post-card').forEach(card => {
+    // Handle click
+    card.addEventListener('click', (e) => {
+      // Don't open modal if clicking on quick action buttons
+      if (e.target.closest('.quick-actions')) {
+        return;
+      }
+      const index = card.dataset.index;
       const post = filteredPosts[index];
       openModal(post);
     });
+
+    // Handle keyboard navigation
+    card.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        const index = card.dataset.index;
+        const post = filteredPosts[index];
+        openModal(post);
+      }
+    });
   });
 
-  // Handle escape key for modal
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
-      closeModal();
-    }
+  // Add copy link button listeners
+  document.querySelectorAll('.copy-link').forEach(button => {
+    button.addEventListener('click', async (e) => {
+      e.stopPropagation(); // Prevent modal from opening
+      const url = button.dataset.url;
+      try {
+        await navigator.clipboard.writeText(url);
+        const originalText = button.innerHTML;
+        button.innerHTML = `
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+          </svg>
+          Copied!
+        `;
+        setTimeout(() => {
+          button.innerHTML = originalText;
+        }, 2000);
+      } catch (err) {
+        console.error('Failed to copy:', err);
+      }
+    });
   });
-
-  // Modal functions
-  window.openModal = (post) => {
-    const modal = document.getElementById('post-modal');
-    modal.querySelector('.modal-image').src = post.imageUrl;
-    modal.querySelector('.modal-author').textContent = post.author || '';
-    modal.querySelector('.modal-caption').textContent = post.caption || '';
-    
-    const collectionsContainer = modal.querySelector('.modal-collections');
-    if (post.collections && post.collections.length) {
-      collectionsContainer.style.display = 'block';
-      collectionsContainer.querySelector('.post-collections').innerHTML = 
-        post.collections.map(c => `<span class="collection-tag">${c.name}</span>`).join('');
-    } else {
-      collectionsContainer.style.display = 'none';
-    }
-
-    const tagsContainer = modal.querySelector('.modal-tags');
-    if (post.tags && post.tags.length) {
-      tagsContainer.style.display = 'block';
-      tagsContainer.querySelector('.post-tags').innerHTML = 
-        post.tags.map(tag => `<span class="post-tag">#${tag}</span>`).join('');
-    } else {
-      tagsContainer.style.display = 'none';
-    }
-
-    modal.querySelector('.view-link').href = post.instagramUrl;
-    modal.classList.add('active');
-    document.body.style.overflow = 'hidden';
-  };
-
-  window.closeModal = () => {
-    const modal = document.getElementById('post-modal');
-    modal.classList.remove('active');
-    document.body.style.overflow = '';
-  };
 }
 
 function renderCollections() {
@@ -341,4 +442,89 @@ function getFilteredPosts() {
   }
 
   return filtered;
+} 
+
+// Modal functions
+function openModal(post) {
+  const modal = document.getElementById('post-modal');
+  const modalImageContainer = modal.querySelector('.modal-image-container');
+  const modalContent = modal.querySelector('.modal-content');
+  
+  // Reset modal content
+  modalImageContainer.innerHTML = `
+    <img 
+      class="modal-image" 
+      src="icons/icon128.png"
+      data-original-url="${post.imageUrl}"
+      alt="${post.caption}"
+      data-fallback="icons/icon128.png"
+    >
+    ${renderPostTypeIndicator(post)}
+  `;
+  
+  // Load image
+  const modalImage = modalImageContainer.querySelector('.modal-image');
+  if (modalImage.dataset.originalUrl) {
+    loadProxiedImage(modalImage, modalImage.dataset.originalUrl);
+  }
+
+  // Reset and populate modal content
+  modalContent.innerHTML = `
+    <div class="modal-header">
+      <div class="modal-author">${post.author || ''}</div>
+    </div>
+    <div class="modal-caption">${post.caption || ''}</div>
+    <div class="modal-dates">${renderDates(post)}</div>
+    <div class="modal-metadata">
+      <div class="modal-collections">
+        <div class="modal-section-title">Collections</div>
+        <div class="post-collections">
+          ${post.collections && post.collections.length ? 
+            post.collections.map(c => `<span class="collection-tag">${c.name}</span>`).join('') : 
+            ''}
+        </div>
+      </div>
+      <div class="modal-tags">
+        <div class="modal-section-title">Tags</div>
+        <div class="post-tags">
+          ${post.tags && post.tags.length ? 
+            post.tags.map(tag => `<span class="post-tag">#${tag}</span>`).join('') : 
+            ''}
+        </div>
+      </div>
+      <div class="modal-quick-actions">
+        ${renderQuickActions(post)}
+      </div>
+    </div>
+  `;
+
+  // Add copy link button listener
+  modal.querySelector('.copy-link')?.addEventListener('click', async () => {
+    const url = post.instagramUrl;
+    try {
+      await navigator.clipboard.writeText(url);
+      const button = modal.querySelector('.copy-link');
+      const originalText = button.innerHTML;
+      button.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+        </svg>
+        Copied!
+      `;
+      setTimeout(() => {
+        button.innerHTML = originalText;
+      }, 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  });
+
+  modal.classList.add('active');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeModal() {
+  const modal = document.getElementById('post-modal');
+  modal.classList.remove('active');
+  document.body.style.overflow = '';
 } 

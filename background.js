@@ -16,13 +16,45 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   }
 });
 
-// Listen for messages from popup
+// Handle messages from content script
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'openInstagramForSync') {
-    handleInstagramSync();
-    sendResponse({ status: 'Processing sync request' });
+    chrome.tabs.create({ url: 'https://www.instagram.com/' }, (tab) => {
+      // Wait for the page to load before injecting the sync button
+      chrome.tabs.onUpdated.addListener(function listener(tabId, info) {
+        if (tabId === tab.id && info.status === 'complete') {
+          chrome.tabs.onUpdated.removeListener(listener);
+          chrome.tabs.sendMessage(tab.id, { action: 'showSyncButton' });
+        }
+      });
+    });
+    sendResponse({ status: 'Opening Instagram' });
+  } else if (request.action === 'proxyImage') {
+    // Proxy the image request
+    fetch(request.url, {
+      method: 'GET',
+      headers: {
+        'Accept': 'image/*',
+        'Referer': 'https://www.instagram.com/',
+        'User-Agent': navigator.userAgent
+      },
+      credentials: 'omit'
+    })
+    .then(response => response.blob())
+    .then(blob => {
+      // Convert blob to base64
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        sendResponse({ dataUrl: reader.result });
+      };
+      reader.readAsDataURL(blob);
+    })
+    .catch(error => {
+      console.error('Error proxying image:', error);
+      sendResponse({ error: error.message });
+    });
+    return true; // Keep the message channel open for async response
   }
-  return true; // Keep message channel open for async response
 });
 
 // Handle Instagram sync process
