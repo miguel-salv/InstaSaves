@@ -235,8 +235,8 @@ async function startSync() {
       const posts = data.items.map(item => {
         const post = item.media;
         const createdAt = post.taken_at ? new Date(post.taken_at * 1000).toISOString() : null;
-        // Use the item's taken_at as the saved timestamp
-        const savedAt = item.taken_at ? new Date(item.taken_at * 1000).toISOString() : null;
+        // Use the item's taken_at as the saved timestamp since it represents when the post was saved
+        const savedAt = item.taken_at ? new Date(item.taken_at * 1000).toISOString() : new Date().toISOString();
 
         return {
           id: post.id,
@@ -247,7 +247,8 @@ async function startSync() {
           tags: (post.caption?.text.match(/#\w+/g) || []).map(t => t.replace('#', '')),
           createdAt,
           savedAt,
-          collections: []
+          collections: [],
+          categories: [] // Initialize as empty array
         };
       }).filter(post => post.imageUrl);
 
@@ -281,6 +282,20 @@ async function startSync() {
 
       // Small delay to avoid rate limiting
       await new Promise(resolve => setTimeout(resolve, 300));
+    }
+
+    // Before saving to storage, analyze and categorize posts
+    for (const post of allPosts) {
+      // Initialize categories as an array if it doesn't exist
+      if (!Array.isArray(post.categories)) {
+        post.categories = [];
+      }
+      
+      // Only analyze if categories array is empty
+      if (post.categories.length === 0) {
+        const relevantCategories = analyzePostContent(post);
+        post.categories = relevantCategories;
+      }
     }
 
     // Save to storage

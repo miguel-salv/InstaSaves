@@ -3,6 +3,7 @@ let posts = [];
 let collections = [];
 let activeCollection = null;
 let activeTags = new Set();
+let activeCategory = null;
 
 // DOM Elements
 let postsGrid;
@@ -10,8 +11,10 @@ let searchInput;
 let sortSelect;
 let clearDataBtn;
 let syncBtn;
+let exportDataBtn;
 let collectionsListEl;
 let tagsListEl;
+let categoriesListEl;
 let modal;
 let modalCloseBtn;
 
@@ -66,6 +69,53 @@ function initializeModal() {
   }
 }
 
+// Function to export posts data for category analysis
+function exportPostsForAnalysis() {
+  // Prepare the data in a format optimized for category analysis
+  const analysisData = posts.map(post => {
+    return {
+      text: post.caption || '',
+      tags: post.tags || [],
+      collections: post.collections.map(c => c.name) || [],
+      assignedCategories: post.categories || [],
+      matchedKeywords: Object.entries(categories)
+        .map(([categoryName, categoryData]) => {
+          // Text to analyze
+          const textToAnalyze = [
+            post.caption || '',
+            ...(post.tags || []),
+            ...(post.collections.map(c => c.name) || [])
+          ].join(' ').toLowerCase();
+          
+          // Find matching keywords
+          const matches = categoryData.keywords.filter(keyword => {
+            const regex = new RegExp(`\\b${keyword}\\b`, 'gi');
+            return regex.test(textToAnalyze);
+          });
+          
+          return matches.length > 0 ? {
+            category: categoryName,
+            keywords: matches
+          } : null;
+        })
+        .filter(Boolean) // Remove null entries
+    };
+  });
+
+  // Create a Blob with the JSON data
+  const blob = new Blob([JSON.stringify(analysisData, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  
+  // Create a temporary link and trigger download
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'category-analysis.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   // Initialize DOM elements
   postsGrid = document.getElementById('posts-grid');
@@ -73,11 +123,23 @@ document.addEventListener('DOMContentLoaded', async () => {
   sortSelect = document.getElementById('sort-select');
   clearDataBtn = document.getElementById('clear-data-btn');
   syncBtn = document.getElementById('sync-btn');
+  exportDataBtn = document.getElementById('export-data-btn');
   collectionsListEl = document.getElementById('collections-list');
   tagsListEl = document.getElementById('tags-list');
+  categoriesListEl = document.getElementById('categories-list');
+
+  // Add keyboard shortcut handler for export button
+  document.addEventListener('keydown', (e) => {
+    // Check for Ctrl/Cmd + Shift + A
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'a') {
+      e.preventDefault();
+      exportDataBtn.classList.toggle('visible');
+    }
+  });
 
   // Verify all elements exist
-  if (!postsGrid || !searchInput || !sortSelect || !clearDataBtn || !syncBtn || !collectionsListEl || !tagsListEl) {
+  if (!postsGrid || !searchInput || !sortSelect || !clearDataBtn || !syncBtn || !exportDataBtn ||
+      !collectionsListEl || !tagsListEl || !categoriesListEl) {
     console.error('Some required elements are missing from the DOM');
     return;
   }
@@ -96,6 +158,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       syncBtn.disabled = false;
     }
   });
+
+  exportDataBtn.addEventListener('click', exportPostsForAnalysis);
 
   clearDataBtn.addEventListener('click', () => {
     if (confirm('Are you sure you want to clear all saved posts? This cannot be undone.')) {
@@ -131,14 +195,37 @@ document.addEventListener('DOMContentLoaded', async () => {
   await loadData();
 });
 
-// Load data from storage
+// Modify loadData function
 async function loadData() {
   try {
     const result = await chrome.storage.local.get(['posts', 'collections']);
     posts = result.posts || [];
     collections = result.collections || [];
+
+    // Analyze posts that don't have categories
+    let hasNewCategories = false;
+    for (const post of posts) {
+      // Initialize categories as an array if it doesn't exist
+      if (!Array.isArray(post.categories)) {
+        post.categories = [];
+      }
+      
+      // Only analyze if categories array is empty
+      if (post.categories.length === 0) {
+        const relevantCategories = analyzePostContent(post);
+        post.categories = relevantCategories;
+        hasNewCategories = true;
+      }
+    }
+
+    // If we added categories to any posts, save back to storage
+    if (hasNewCategories) {
+      await chrome.storage.local.set({ posts });
+    }
+
     renderPosts();
     renderCollections();
+    renderCategories();
     renderTags();
   } catch (error) {
     console.error('Error loading data:', error);
@@ -232,10 +319,10 @@ function renderPosts() {
   const sortValue = sortSelect.value;
   switch (sortValue) {
     case 'newest-saved':
-      filteredPosts = filteredPosts.sort((a, b) => new Date(b.savedAt) - new Date(a.savedAt));
+      filteredPosts = [...filteredPosts]; // Keep original order (newest first)
       break;
     case 'oldest-saved':
-      filteredPosts = filteredPosts.sort((a, b) => new Date(a.savedAt) - new Date(b.savedAt));
+      filteredPosts = [...filteredPosts].reverse(); // Reverse to get oldest first
       break;
     case 'newest-posted':
       filteredPosts = filteredPosts.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
@@ -414,27 +501,78 @@ function renderTags() {
   });
 } 
 
-// Update the filtered posts logic
+// Add after loadData function
+async function analyzePostContent(post) {
+  const textToAnalyze = [
+    post.caption,
+    ...post.tags,
+    ...post.collections.map(c => c.name)
+  ].join(' ').toLowerCase();
+
+  const assignedCategories = [];
+  
+  // Calculate scores for each category
+  const categoryScores = Object.entries(categories).map(([categoryName, categoryData]) => {
+    let score = 0;
+    
+    // Check main category keywords
+    categoryData.keywords.forEach(keyword => {
+      const regex = new RegExp(`\\b${keyword}\\b`, 'gi');
+      const matches = textToAnalyze.match(regex) || [];
+      score += matches.length;
+    });
+    
+    // Check subcategory keywords
+    Object.entries(categoryData.subcategories).forEach(([subcategoryName, keywords]) => {
+      keywords.forEach(keyword => {
+        const regex = new RegExp(`\\b${keyword}\\b`, 'gi');
+        const matches = textToAnalyze.match(regex) || [];
+        score += matches.length;
+      });
+    });
+    
+    return { categoryName, score };
+  });
+  
+  // Sort by score and get categories with scores > 0
+  const relevantCategories = categoryScores
+    .filter(cat => cat.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .map(cat => cat.categoryName);
+  
+  return relevantCategories;
+}
+
+// Modify the existing renderPosts function to include category filtering
 function getFilteredPosts() {
   let filtered = [...posts];
 
-  // Filter by collection
+  // Filter by category
+  if (activeCategory) {
+    filtered = filtered.filter(post => {
+      const postCategories = Array.isArray(post.categories) ? post.categories : [];
+      return postCategories.includes(activeCategory);
+    });
+  }
+
+  // Filter by collection (existing code)
   if (activeCollection) {
     filtered = filtered.filter(post => 
       post.collections.some(c => c.id === activeCollection.id)
     );
   }
 
-  // Filter by search
+  // Filter by search (existing code)
   if (searchInput.value) {
     const searchTerm = searchInput.value.toLowerCase();
     filtered = filtered.filter(post =>
       post.caption?.toLowerCase().includes(searchTerm) ||
+      post.author?.toLowerCase().includes(searchTerm) ||
       post.tags.some(tag => tag.toLowerCase().includes(searchTerm))
     );
   }
 
-  // Filter by tags
+  // Filter by tags (existing code)
   if (activeTags.size > 0) {
     filtered = filtered.filter(post =>
       post.tags.some(tag => activeTags.has(tag))
@@ -443,6 +581,53 @@ function getFilteredPosts() {
 
   return filtered;
 } 
+
+// Add new function to render categories
+function renderCategories() {
+  if (!categoriesListEl) return;
+
+  // Get category counts from posts
+  const categoryCounts = {};
+  posts.forEach(post => {
+    // Ensure post.categories is an array
+    const postCategories = Array.isArray(post.categories) ? post.categories : [];
+    postCategories.forEach(category => {
+      categoryCounts[category] = (categoryCounts[category] || 0) + 1;
+    });
+  });
+
+  // Start with All Posts option
+  let categoriesHTML = `
+    <button class="category-btn ${activeCategory === null ? 'active' : ''}" data-category="all">
+      All Posts
+      <span class="count">${posts.length}</span>
+    </button>
+  `;
+
+  // Add each category that has posts
+  Object.keys(categories).forEach(category => {
+    if (categoryCounts[category]) {
+      categoriesHTML += `
+        <button class="category-btn ${activeCategory === category ? 'active' : ''}" data-category="${category}">
+          ${category}
+          <span class="count">${categoryCounts[category] || 0}</span>
+        </button>
+      `;
+    }
+  });
+
+  categoriesListEl.innerHTML = categoriesHTML;
+
+  // Add click handlers
+  categoriesListEl.querySelectorAll('.category-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const category = btn.dataset.category;
+      activeCategory = category === 'all' ? null : category;
+      renderCategories();
+      renderPosts();
+    });
+  });
+}
 
 // Modal functions
 function openModal(post) {

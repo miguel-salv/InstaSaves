@@ -16,12 +16,17 @@
         <option value="oldest-posted">Oldest Posted</option>
       </select>
       <button id="sync-btn" class="sync-btn">Sync with Instagram</button>
+      <button id="export-data-btn" class="header-btn">Export Analysis Data</button>
       <button id="clear-data-btn" class="header-btn clear-btn">Clear Data</button>
     </div>
   </header>
 
   <main class="main-content">
     <aside class="sidebar">
+      <div class="sidebar-section">
+        <h2 class="sidebar-title">Categories</h2>
+        <div id="categories-list" class="categories-list"></div>
+      </div>
       <div class="sidebar-section">
         <h2 class="sidebar-title">Collections</h2>
         <div id="collections-list" class="collections-list"></div>
@@ -34,6 +39,7 @@
     <div id="posts-grid" class="posts-grid"></div>
   </main>
 
+  <script src="categories.js"></script>
   <script src="library.js"></script>
 </body>
 </html> 
