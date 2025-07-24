@@ -147,6 +147,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Initialize modal
   initializeModal();
 
+  // Initialize sidebar sections
+  renderCollections();
+  renderTags();
+  renderCategories();
+
   // Event Listeners
   syncBtn.addEventListener('click', async () => {
     syncBtn.disabled = true;
@@ -332,18 +337,39 @@ function renderPosts() {
       break;
   }
 
+  // Show empty state if no posts
+  if (filteredPosts.length === 0) {
+    if (searchInput.value || activeTags.size > 0 || activeCollection || activeCategory) {
+      // No results for filters
+      postsGrid.innerHTML = `
+        <div class="empty-state">
+          No posts match your current filters. Try adjusting your search criteria or clearing filters.
+        </div>
+      `;
+    } else {
+      // No posts at all
+      postsGrid.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-state-spacer"></div>
+          <p>Click the <span class="sync-suggestion">Sync with Instagram</span> button to get started!</p>
+        </div>
+      `;
+    }
+    return;
+  }
+
   postsGrid.innerHTML = filteredPosts.map((post, index) => `
     <div class="post-card" data-index="${index}" role="button" tabindex="0">
       <div class="post-image-container">
         ${renderPostTypeIndicator(post)}
-        <img 
-          class="post-image" 
-          src="icons/icon128.png"
+        ${post.imageUrl ? `<img 
+          class="post-image"
+          src="${post.imageUrl}"
           data-original-url="${post.imageUrl}"
           alt="${post.caption}"
           data-fallback="icons/icon128.png"
           loading="lazy"
-        >
+        >` : ''}
       </div>
       <div class="post-info">
         ${post.author ? `<div class="post-author">${post.author}</div>` : ''}
@@ -411,6 +437,35 @@ function renderPosts() {
   });
 }
 
+function handleSectionCollapse(titleContainer) {
+  const section = titleContainer.closest('.sidebar-section');
+  const content = section.querySelector('.sidebar-content');
+  
+  if (!section.classList.contains('collapsed')) {
+    // Collapsing
+    const height = content.scrollHeight;
+    content.style.height = height + 'px';
+    // Force a reflow
+    content.offsetHeight;
+    content.style.height = '0';
+    section.classList.add('collapsed');
+  } else {
+    // Expanding
+    section.classList.remove('collapsed');
+    const height = content.scrollHeight;
+    content.style.height = '0';
+    // Force a reflow
+    content.offsetHeight;
+    content.style.height = height + 'px';
+    
+    // Remove the explicit height after the transition
+    content.addEventListener('transitionend', function handler() {
+      content.style.height = 'auto';
+      content.removeEventListener('transitionend', handler);
+    });
+  }
+}
+
 function renderCollections() {
   if (!collectionsListEl) return;
 
@@ -421,16 +476,99 @@ function renderCollections() {
     });
   });
 
-  // Start with All Posts option
-  let collectionsHTML = `
-    <button class="collection-btn ${activeCollection === null ? 'active' : ''}" data-collection-id="all">
-      All Posts
-      <span class="count">${posts.length}</span>
-    </button>
-  `;
+  // Get search value
+  const searchValue = document.getElementById('collection-search')?.value.toLowerCase() || '';
 
-  // Add rest of collections
-  collectionsHTML += collections.map(collection => `
+  // Create title container and search input if they don't exist
+  let titleContainer = collectionsListEl.closest('.sidebar-section')?.querySelector('.sidebar-title-container');
+  let contentWrapper = collectionsListEl.closest('.sidebar-content');
+  let searchWrapper = collectionsListEl.previousElementSibling;
+
+  // Always create title container if it doesn't exist
+  if (!titleContainer) {
+    // Create new title container
+    const newTitleContainer = document.createElement('div');
+    newTitleContainer.className = 'sidebar-title-container';
+    newTitleContainer.innerHTML = `
+      <div class="sidebar-title-wrapper">
+        <svg class="section-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M19 5v14H5V5h14m0-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/>
+          <path d="M14 17H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/>
+        </svg>
+        <div class="sidebar-title">Collections</div>
+        <svg class="chevron-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/>
+        </svg>
+      </div>
+    `;
+
+    // Get the sidebar section
+    const sidebarSection = collectionsListEl.closest('.sidebar-section');
+    if (!sidebarSection) {
+      // If no sidebar section exists, create one
+      const newSidebarSection = document.createElement('div');
+      newSidebarSection.className = 'sidebar-section';
+      collectionsListEl.parentNode.insertBefore(newSidebarSection, collectionsListEl);
+      newSidebarSection.appendChild(newTitleContainer);
+    } else {
+      // Insert at the beginning of the sidebar section
+      sidebarSection.insertBefore(newTitleContainer, sidebarSection.firstChild);
+    }
+
+    titleContainer = newTitleContainer;
+
+    // Add click handler for collapse/expand
+    titleContainer.addEventListener('click', (e) => {
+      if (e.target.closest('.tag-search')) return;
+      handleSectionCollapse(titleContainer);
+    });
+  }
+
+  // Create search wrapper if it doesn't exist
+  if (!searchWrapper) {
+    searchWrapper = document.createElement('div');
+    searchWrapper.className = 'search-wrapper';
+    searchWrapper.innerHTML = `
+      <input type="text" id="collection-search" class="tag-search" placeholder="Search collections...">
+    `;
+    contentWrapper?.insertBefore(searchWrapper, collectionsListEl);
+
+    // Add event listener to search input if it's new
+    const searchInput = searchWrapper.querySelector('input');
+    if (searchInput && !searchInput.hasEventListener) {
+      searchInput.addEventListener('input', (e) => {
+        e.stopPropagation();
+        renderCollections();
+      });
+      searchInput.hasEventListener = true;
+    }
+  }
+
+  // Filter and sort collections
+  const filteredCollections = collections
+    .filter(collection => collection.name.toLowerCase().includes(searchValue))
+    .sort((a, b) => {
+      // First sort by count
+      const countDiff = (collectionCounts[b.id] || 0) - (collectionCounts[a.id] || 0);
+      if (countDiff !== 0) return countDiff;
+      // Then alphabetically
+      return a.name.localeCompare(b.name);
+    });
+
+  let collectionsHTML = '';
+  
+  // Add "All Posts" only if it matches the search or there's no search
+  if ('all posts'.includes(searchValue)) {
+    collectionsHTML += `
+      <button class="collection-btn ${activeCollection === null ? 'active' : ''}" data-collection-id="all">
+        All Posts
+        <span class="count">${posts.length}</span>
+      </button>
+    `;
+  }
+
+  // Add filtered collections
+  collectionsHTML += filteredCollections.map(collection => `
     <button class="collection-btn ${activeCollection?.id === collection.id ? 'active' : ''}" data-collection-id="${collection.id}">
       ${collection.name}
       <span class="count">${collectionCounts[collection.id] || 0}</span>
@@ -468,6 +606,7 @@ function renderCollections() {
 function renderTags() {
   if (!tagsListEl) return;
 
+  // Get tag counts
   const tagCounts = {};
   posts.forEach(post => {
     post.tags.forEach(tag => {
@@ -475,11 +614,92 @@ function renderTags() {
     });
   });
 
+  // Sort tags by count and then alphabetically
   const sortedTags = Object.entries(tagCounts)
-    .sort(([,a], [,b]) => b - a)
+    .sort(([tagA, countA], [tagB, countB]) => {
+      // First sort by count in descending order
+      if (countB !== countA) {
+        return countB - countA;
+      }
+      // If counts are equal, sort alphabetically
+      return tagA.localeCompare(tagB);
+    })
     .map(([tag]) => tag);
 
-  tagsListEl.innerHTML = sortedTags.map(tag => `
+  // Get search value
+  const searchValue = document.getElementById('tag-search')?.value.toLowerCase() || '';
+
+  // Create title container and search input if they don't exist
+  let titleContainer = tagsListEl.closest('.sidebar-section')?.querySelector('.sidebar-title-container');
+  let contentWrapper = tagsListEl.closest('.sidebar-content');
+  let searchWrapper = tagsListEl.previousElementSibling;
+
+  // Always create title container if it doesn't exist
+  if (!titleContainer) {
+    // Create new title container
+    const newTitleContainer = document.createElement('div');
+    newTitleContainer.className = 'sidebar-title-container';
+    newTitleContainer.innerHTML = `
+      <div class="sidebar-title-wrapper">
+        <svg class="section-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M21.41 11.58l-9-9C12.05 2.22 11.55 2 11 2H4c-1.1 0-2 .9-2 2v7c0 .55.22 1.05.59 1.42l9 9c.36.36.86.58 1.41.58.55 0 1.05-.22 1.41-.59l7-7c.37-.36.59-.86.59-1.41 0-.55-.23-1.06-.59-1.42zM5.5 7C4.67 7 4 6.33 4 5.5S4.67 4 5.5 4 7 4.67 7 5.5 6.33 7 5.5 7z"/>
+        </svg>
+        <div class="sidebar-title">Tags</div>
+        <svg class="chevron-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/>
+        </svg>
+      </div>
+    `;
+
+    // Get the sidebar section
+    const sidebarSection = tagsListEl.closest('.sidebar-section');
+    if (!sidebarSection) {
+      // If no sidebar section exists, create one
+      const newSidebarSection = document.createElement('div');
+      newSidebarSection.className = 'sidebar-section';
+      tagsListEl.parentNode.insertBefore(newSidebarSection, tagsListEl);
+      newSidebarSection.appendChild(newTitleContainer);
+    } else {
+      // Insert at the beginning of the sidebar section
+      sidebarSection.insertBefore(newTitleContainer, sidebarSection.firstChild);
+    }
+
+    titleContainer = newTitleContainer;
+
+    // Add click handler for collapse/expand
+    titleContainer.addEventListener('click', (e) => {
+      if (e.target.closest('.tag-search')) return;
+      handleSectionCollapse(titleContainer);
+    });
+  }
+
+  // Create search wrapper if it doesn't exist
+  if (!searchWrapper) {
+    searchWrapper = document.createElement('div');
+    searchWrapper.className = 'search-wrapper';
+    searchWrapper.innerHTML = `
+      <input type="text" id="tag-search" class="tag-search" placeholder="Search tags...">
+    `;
+    contentWrapper?.insertBefore(searchWrapper, tagsListEl);
+
+    // Add event listener to search input if it's new
+    const searchInput = searchWrapper.querySelector('input');
+    if (searchInput && !searchInput.hasEventListener) {
+      searchInput.addEventListener('input', (e) => {
+        e.stopPropagation();
+        renderTags();
+      });
+      searchInput.hasEventListener = true;
+    }
+  }
+
+  // Filter tags based on search
+  const filteredTags = sortedTags.filter(tag => 
+    tag.toLowerCase().includes(searchValue)
+  );
+
+  // Render filtered tags
+  tagsListEl.innerHTML = filteredTags.map(tag => `
     <button class="tag-btn ${activeTags.has(tag) ? 'active' : ''}" data-tag="${tag}">
       #${tag}
       <span class="tag-count">${tagCounts[tag]}</span>
@@ -499,6 +719,230 @@ function renderTags() {
       renderPosts();
     });
   });
+}
+
+function renderCategories() {
+  if (!categoriesListEl) return;
+
+  // Get category counts from posts
+  const categoryCounts = {};
+  posts.forEach(post => {
+    // Ensure post.categories is an array
+    const postCategories = Array.isArray(post.categories) ? post.categories : [];
+    postCategories.forEach(category => {
+      categoryCounts[category] = (categoryCounts[category] || 0) + 1;
+    });
+  });
+
+  // Get search value
+  const searchValue = document.getElementById('category-search')?.value.toLowerCase() || '';
+
+  // Create title container and search input if they don't exist
+  let titleContainer = categoriesListEl.closest('.sidebar-section')?.querySelector('.sidebar-title-container');
+  let contentWrapper = categoriesListEl.closest('.sidebar-content');
+  let searchWrapper = categoriesListEl.previousElementSibling;
+
+  // Always create title container if it doesn't exist
+  if (!titleContainer) {
+    // Create new title container
+    const newTitleContainer = document.createElement('div');
+    newTitleContainer.className = 'sidebar-title-container';
+    newTitleContainer.innerHTML = `
+      <div class="sidebar-title-wrapper">
+        <svg class="section-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/>
+        </svg>
+        <div class="sidebar-title">Categories</div>
+        <svg class="chevron-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/>
+        </svg>
+      </div>
+    `;
+
+    // Get the sidebar section
+    const sidebarSection = categoriesListEl.closest('.sidebar-section');
+    if (!sidebarSection) {
+      // If no sidebar section exists, create one
+      const newSidebarSection = document.createElement('div');
+      newSidebarSection.className = 'sidebar-section';
+      categoriesListEl.parentNode.insertBefore(newSidebarSection, categoriesListEl);
+      newSidebarSection.appendChild(newTitleContainer);
+    } else {
+      // Insert at the beginning of the sidebar section
+      sidebarSection.insertBefore(newTitleContainer, sidebarSection.firstChild);
+    }
+
+    titleContainer = newTitleContainer;
+
+    // Add click handler for collapse/expand
+    titleContainer.addEventListener('click', (e) => {
+      if (e.target.closest('.tag-search')) return;
+      handleSectionCollapse(titleContainer);
+    });
+  }
+
+  // Create search wrapper if it doesn't exist
+  if (!searchWrapper) {
+    searchWrapper = document.createElement('div');
+    searchWrapper.className = 'search-wrapper';
+    searchWrapper.innerHTML = `
+      <input type="text" id="category-search" class="tag-search" placeholder="Search categories...">
+    `;
+    contentWrapper?.insertBefore(searchWrapper, categoriesListEl);
+
+    // Add event listener to search input if it's new
+    const searchInput = searchWrapper.querySelector('input');
+    if (searchInput && !searchInput.hasEventListener) {
+      searchInput.addEventListener('input', (e) => {
+        e.stopPropagation();
+        renderCategories();
+      });
+      searchInput.hasEventListener = true;
+    }
+  }
+
+  // Filter and sort categories
+  const filteredCategories = Object.keys(categories)
+    .filter(category => {
+      // Only include categories that have posts and match the search
+      return categoryCounts[category] && category.toLowerCase().includes(searchValue);
+    })
+    .sort((a, b) => {
+      // First sort by count
+      const countDiff = (categoryCounts[b] || 0) - (categoryCounts[a] || 0);
+      if (countDiff !== 0) return countDiff;
+      // Then alphabetically
+      return a.localeCompare(b);
+    });
+
+  let categoriesHTML = '';
+  
+  // Add "All Posts" only if it matches the search or there's no search
+  if ('all posts'.includes(searchValue)) {
+    categoriesHTML += `
+      <button class="category-btn ${activeCategory === null ? 'active' : ''}" data-category="all">
+        All Posts
+        <span class="count">${posts.length}</span>
+      </button>
+    `;
+  }
+
+  // Add filtered categories
+  categoriesHTML += filteredCategories.map(category => `
+    <button class="category-btn ${activeCategory === category ? 'active' : ''}" data-category="${category}">
+      ${category}
+      <span class="count">${categoryCounts[category] || 0}</span>
+    </button>
+  `).join('');
+
+  categoriesListEl.innerHTML = categoriesHTML;
+
+  // Add click handlers
+  categoriesListEl.querySelectorAll('.category-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const category = btn.dataset.category;
+      activeCategory = category === 'all' ? null : category;
+      renderCategories();
+      renderPosts();
+    });
+  });
+}
+
+// Modal functions
+function openModal(post) {
+  const modal = document.getElementById('post-modal');
+  const modalImageContainer = modal.querySelector('.modal-image-container');
+  const modalContent = modal.querySelector('.modal-content');
+  
+  // Reset modal content
+  modalImageContainer.innerHTML = `
+    ${post.imageUrl ? `<img 
+      class="modal-image"
+      src="${post.imageUrl}"
+      data-original-url="${post.imageUrl}"
+      alt="${post.caption}"
+      data-fallback="icons/icon128.png"
+    >` : ''}
+    ${renderPostTypeIndicator(post)}
+  `;
+  
+  // Load image
+  const modalImage = modalImageContainer.querySelector('.modal-image');
+  if (modalImage && modalImage.dataset.originalUrl) {
+    loadProxiedImage(modalImage, modalImage.dataset.originalUrl);
+  }
+
+  // Reset and populate modal content
+  modalContent.innerHTML = `
+    <div class="modal-header">
+      <div class="modal-author">${post.author || ''}</div>
+    </div>
+    <div class="modal-caption">${post.caption || ''}</div>
+    <div class="modal-dates">${renderDates(post)}</div>
+    <div class="modal-metadata">
+      <div class="modal-collections">
+        <div class="modal-section-title">Collections</div>
+        <div class="post-collections">
+          ${post.collections && post.collections.length ? 
+            post.collections.map(c => `<span class="collection-tag">${c.name}</span>`).join('') : 
+            ''}
+        </div>
+      </div>
+      <div class="modal-tags">
+        <div class="modal-section-title">Tags</div>
+        <div class="post-tags">
+          ${post.tags && post.tags.length ? 
+            post.tags.map(tag => `<button class="post-tag" data-tag="${tag}">#${tag}</button>`).join('') : 
+            ''}
+        </div>
+      </div>
+      <div class="modal-quick-actions">
+        ${renderQuickActions(post)}
+      </div>
+    </div>
+  `;
+
+  // Add click handlers for tags
+  modalContent.querySelectorAll('.post-tag').forEach(tagBtn => {
+    tagBtn.addEventListener('click', () => {
+      const tag = tagBtn.dataset.tag;
+      activeTags.clear(); // Clear existing tags
+      activeTags.add(tag); // Add clicked tag
+      closeModal();
+      renderTags(); // Update tag list in sidebar
+      renderPosts(); // Update posts grid
+    });
+  });
+
+  // Add copy link button listener
+  modal.querySelector('.copy-link')?.addEventListener('click', async () => {
+    const url = post.instagramUrl;
+    try {
+      await navigator.clipboard.writeText(url);
+      const button = modal.querySelector('.copy-link');
+      const originalText = button.innerHTML;
+      button.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+        </svg>
+        Copied!
+      `;
+      setTimeout(() => {
+        button.innerHTML = originalText;
+      }, 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  });
+
+  modal.classList.add('active');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeModal() {
+  const modal = document.getElementById('post-modal');
+  modal.classList.remove('active');
+  document.body.style.overflow = '';
 } 
 
 // Add after loadData function
@@ -596,25 +1040,106 @@ function renderCategories() {
     });
   });
 
-  // Start with All Posts option
-  let categoriesHTML = `
-    <button class="category-btn ${activeCategory === null ? 'active' : ''}" data-category="all">
-      All Posts
-      <span class="count">${posts.length}</span>
-    </button>
-  `;
+  // Get search value
+  const searchValue = document.getElementById('category-search')?.value.toLowerCase() || '';
 
-  // Add each category that has posts
-  Object.keys(categories).forEach(category => {
-    if (categoryCounts[category]) {
-      categoriesHTML += `
-        <button class="category-btn ${activeCategory === category ? 'active' : ''}" data-category="${category}">
-          ${category}
-          <span class="count">${categoryCounts[category] || 0}</span>
-        </button>
-      `;
+  // Create title container and search input if they don't exist
+  let titleContainer = categoriesListEl.closest('.sidebar-section')?.querySelector('.sidebar-title-container');
+  let contentWrapper = categoriesListEl.closest('.sidebar-content');
+  let searchWrapper = categoriesListEl.previousElementSibling;
+
+  // Always create title container if it doesn't exist
+  if (!titleContainer) {
+    // Create new title container
+    const newTitleContainer = document.createElement('div');
+    newTitleContainer.className = 'sidebar-title-container';
+    newTitleContainer.innerHTML = `
+      <div class="sidebar-title-wrapper">
+        <svg class="section-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/>
+        </svg>
+        <div class="sidebar-title">Categories</div>
+        <svg class="chevron-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/>
+        </svg>
+      </div>
+    `;
+
+    // Get the sidebar section
+    const sidebarSection = categoriesListEl.closest('.sidebar-section');
+    if (!sidebarSection) {
+      // If no sidebar section exists, create one
+      const newSidebarSection = document.createElement('div');
+      newSidebarSection.className = 'sidebar-section';
+      categoriesListEl.parentNode.insertBefore(newSidebarSection, categoriesListEl);
+      newSidebarSection.appendChild(newTitleContainer);
+    } else {
+      // Insert at the beginning of the sidebar section
+      sidebarSection.insertBefore(newTitleContainer, sidebarSection.firstChild);
     }
-  });
+
+    titleContainer = newTitleContainer;
+
+    // Add click handler for collapse/expand
+    titleContainer.addEventListener('click', (e) => {
+      if (e.target.closest('.tag-search')) return;
+      handleSectionCollapse(titleContainer);
+    });
+  }
+
+  // Create search wrapper if it doesn't exist
+  if (!searchWrapper) {
+    searchWrapper = document.createElement('div');
+    searchWrapper.className = 'search-wrapper';
+    searchWrapper.innerHTML = `
+      <input type="text" id="category-search" class="tag-search" placeholder="Search categories...">
+    `;
+    contentWrapper?.insertBefore(searchWrapper, categoriesListEl);
+
+    // Add event listener to search input if it's new
+    const searchInput = searchWrapper.querySelector('input');
+    if (searchInput && !searchInput.hasEventListener) {
+      searchInput.addEventListener('input', (e) => {
+        e.stopPropagation();
+        renderCategories();
+      });
+      searchInput.hasEventListener = true;
+    }
+  }
+
+  // Filter and sort categories
+  const filteredCategories = Object.keys(categories)
+    .filter(category => {
+      // Only include categories that have posts and match the search
+      return categoryCounts[category] && category.toLowerCase().includes(searchValue);
+    })
+    .sort((a, b) => {
+      // First sort by count
+      const countDiff = (categoryCounts[b] || 0) - (categoryCounts[a] || 0);
+      if (countDiff !== 0) return countDiff;
+      // Then alphabetically
+      return a.localeCompare(b);
+    });
+
+  let categoriesHTML = '';
+  
+  // Add "All Posts" only if it matches the search or there's no search
+  if ('all posts'.includes(searchValue)) {
+    categoriesHTML += `
+      <button class="category-btn ${activeCategory === null ? 'active' : ''}" data-category="all">
+        All Posts
+        <span class="count">${posts.length}</span>
+      </button>
+    `;
+  }
+
+  // Add filtered categories
+  categoriesHTML += filteredCategories.map(category => `
+    <button class="category-btn ${activeCategory === category ? 'active' : ''}" data-category="${category}">
+      ${category}
+      <span class="count">${categoryCounts[category] || 0}</span>
+    </button>
+  `).join('');
 
   categoriesListEl.innerHTML = categoriesHTML;
 
@@ -627,89 +1152,4 @@ function renderCategories() {
       renderPosts();
     });
   });
-}
-
-// Modal functions
-function openModal(post) {
-  const modal = document.getElementById('post-modal');
-  const modalImageContainer = modal.querySelector('.modal-image-container');
-  const modalContent = modal.querySelector('.modal-content');
-  
-  // Reset modal content
-  modalImageContainer.innerHTML = `
-    <img 
-      class="modal-image" 
-      src="icons/icon128.png"
-      data-original-url="${post.imageUrl}"
-      alt="${post.caption}"
-      data-fallback="icons/icon128.png"
-    >
-    ${renderPostTypeIndicator(post)}
-  `;
-  
-  // Load image
-  const modalImage = modalImageContainer.querySelector('.modal-image');
-  if (modalImage.dataset.originalUrl) {
-    loadProxiedImage(modalImage, modalImage.dataset.originalUrl);
-  }
-
-  // Reset and populate modal content
-  modalContent.innerHTML = `
-    <div class="modal-header">
-      <div class="modal-author">${post.author || ''}</div>
-    </div>
-    <div class="modal-caption">${post.caption || ''}</div>
-    <div class="modal-dates">${renderDates(post)}</div>
-    <div class="modal-metadata">
-      <div class="modal-collections">
-        <div class="modal-section-title">Collections</div>
-        <div class="post-collections">
-          ${post.collections && post.collections.length ? 
-            post.collections.map(c => `<span class="collection-tag">${c.name}</span>`).join('') : 
-            ''}
-        </div>
-      </div>
-      <div class="modal-tags">
-        <div class="modal-section-title">Tags</div>
-        <div class="post-tags">
-          ${post.tags && post.tags.length ? 
-            post.tags.map(tag => `<span class="post-tag">#${tag}</span>`).join('') : 
-            ''}
-        </div>
-      </div>
-      <div class="modal-quick-actions">
-        ${renderQuickActions(post)}
-      </div>
-    </div>
-  `;
-
-  // Add copy link button listener
-  modal.querySelector('.copy-link')?.addEventListener('click', async () => {
-    const url = post.instagramUrl;
-    try {
-      await navigator.clipboard.writeText(url);
-      const button = modal.querySelector('.copy-link');
-      const originalText = button.innerHTML;
-      button.innerHTML = `
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
-        </svg>
-        Copied!
-      `;
-      setTimeout(() => {
-        button.innerHTML = originalText;
-      }, 2000);
-    } catch (err) {
-      console.error('Failed to copy:', err);
-    }
-  });
-
-  modal.classList.add('active');
-  document.body.style.overflow = 'hidden';
-}
-
-function closeModal() {
-  const modal = document.getElementById('post-modal');
-  modal.classList.remove('active');
-  document.body.style.overflow = '';
 } 

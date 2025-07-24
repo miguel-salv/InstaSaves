@@ -6,7 +6,12 @@
 </head>
 <body>
   <header class="header">
-    <h1 class="title">InstaSaves</h1>
+    <div class="header-left">
+      <span class="website-icon">
+        <img src="icons/icon128.png" alt="InstaSaves logo" width="28" height="28" style="display:inline-block;vertical-align:middle;margin-right:8px;" />
+      </span>
+      <h1 class="title">InstaSaves</h1>
+    </div>
     <div class="header-actions">
       <input type="text" id="search-input" class="search-input" placeholder="Search saved posts...">
       <select id="sort-select" class="sort-select">
@@ -24,16 +29,19 @@
   <main class="main-content">
     <aside class="sidebar">
       <div class="sidebar-section">
-        <h2 class="sidebar-title">Categories</h2>
-        <div id="categories-list" class="categories-list"></div>
+        <div class="sidebar-content">
+          <div id="categories-list" class="categories-list"></div>
+        </div>
       </div>
       <div class="sidebar-section">
-        <h2 class="sidebar-title">Collections</h2>
-        <div id="collections-list" class="collections-list"></div>
+        <div class="sidebar-content">
+          <div id="collections-list" class="collections-list"></div>
+        </div>
       </div>
       <div class="sidebar-section">
-        <h2 class="sidebar-title">Tags</h2>
-        <div id="tags-list" class="tags-list"></div>
+        <div class="sidebar-content">
+          <div id="tags-list" class="tags-list"></div>
+        </div>
       </div>
     </aside>
     <div id="posts-grid" class="posts-grid"></div>

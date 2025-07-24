@@ -20,14 +20,14 @@ async function injectSyncButton() {
   }
 
   // Remove any existing sync button
-  const existingButton = document.getElementById('savethegram-start-sync');
+  const existingButton = document.getElementById('instasaves-start-sync');
   if (existingButton) {
     existingButton.remove();
   }
 
   // Create sync button container
   const syncContainer = document.createElement('div');
-  syncContainer.id = 'savethegram-start-sync';
+  syncContainer.id = 'instasaves-start-sync';
   syncContainer.innerHTML = `
     <div style="
       position: fixed;
@@ -48,8 +48,12 @@ async function injectSyncButton() {
       <h2 style="
         margin: 0 0 16px 0;
         font-size: 20px;
-        color: #1d9bf0;
-      ">SAVETHEGRAM</h2>
+        background: linear-gradient(45deg, #fa7e1e, #d62976, #962fbf);
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+        font-weight: 600;
+      ">InstaSave</h2>
       <p style="
         margin: 0 0 20px 0;
         color: #8899a6;
@@ -57,14 +61,14 @@ async function injectSyncButton() {
         line-height: 1.4;
       ">Ready to sync your saved posts? This will fetch all your saved posts and collections.</p>
       <button id="start-sync-btn" style="
-        background: #1d9bf0;
+        background: linear-gradient(45deg, #fa7e1e, #d62976, #962fbf);
         color: white;
         border: none;
         border-radius: 6px;
         padding: 12px 24px;
         font-size: 16px;
         cursor: pointer;
-        transition: background-color 0.2s;
+        transition: opacity 0.2s;
       ">Start Sync</button>
     </div>
   `;
@@ -86,16 +90,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 });
 
-// Show sync button if we're on the main page and it was opened for syncing
-if (document.readyState === 'complete' && isInstagramMainPage()) {
-  injectSyncButton();
-} else {
-  document.addEventListener('readystatechange', () => {
-    if (document.readyState === 'complete' && isInstagramMainPage()) {
-      injectSyncButton();
-    }
-  });
-}
+// Remove automatic sync button injection on page load
+// The sync button will only be shown when explicitly requested through the extension
 
 // Main sync function
 async function startSync() {
@@ -136,12 +132,12 @@ async function startSync() {
         display: none;
       ">
         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
-          <h3 style="margin: 0; font-size: 16px; color: #1d9bf0;">InstaSaves Sync</h3>
+          <h3 style="margin: 0; font-size: 16px; background: linear-gradient(45deg, #fa7e1e, #d62976, #962fbf); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;">InstaSave Sync</h3>
           <div id="instasaves-spinner" style="
             width: 20px;
             height: 20px;
             border: 2px solid #2f3336;
-            border-top-color: #1d9bf0;
+            border-top-color: #d62976;
             border-radius: 50%;
             animation: instasaves-spin 1s linear infinite;
           "></div>

@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "InstaSaves",
   "version": "1.0",
-  "description": "View and organize Instagram saved posts offline",
+  "description": "Save and organize your Instagram posts with categories and collections. Access your saved content offline with smart categorization.",
   "permissions": [
     "storage",
     "tabs",

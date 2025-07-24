@@ -5,30 +5,53 @@ chrome.action.onClicked.addListener(() => {
   chrome.tabs.create({ url: chrome.runtime.getURL('library.html') });
 });
 
-// Listen for tab updates
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  // Only proceed if the tab has finished loading and it's Instagram's main page
-  if (changeInfo.status === 'complete' && 
-      tab.url === 'https://www.instagram.com/') {
-    // Try to inject the sync button
-    chrome.tabs.sendMessage(tabId, { action: 'showSyncButton' })
-      .catch(error => console.log('Tab not ready yet'));
-  }
-});
-
 // Handle messages from content script
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'openInstagramForSync') {
-    chrome.tabs.create({ url: 'https://www.instagram.com/' }, (tab) => {
-      // Wait for the page to load before injecting the sync button
-      chrome.tabs.onUpdated.addListener(function listener(tabId, info) {
-        if (tabId === tab.id && info.status === 'complete') {
-          chrome.tabs.onUpdated.removeListener(listener);
-          chrome.tabs.sendMessage(tab.id, { action: 'showSyncButton' });
+    // First check if Instagram is already open
+    chrome.tabs.query({ url: 'https://www.instagram.com/*' }, (tabs) => {
+      if (tabs.length > 0) {
+        // Instagram is already open, use the first tab
+        const tab = tabs[0];
+        // If not on main page, navigate to it
+        if (tab.url !== 'https://www.instagram.com/') {
+          chrome.tabs.update(tab.id, { 
+            url: 'https://www.instagram.com/',
+            active: true 
+          }, () => {
+            // Wait for the page to load before injecting the sync button
+            chrome.tabs.onUpdated.addListener(function listener(tabId, info) {
+              if (tabId === tab.id && info.status === 'complete') {
+                chrome.tabs.onUpdated.removeListener(listener);
+                chrome.tabs.sendMessage(tab.id, { action: 'showSyncButton' })
+                  .catch(error => console.log('Tab not ready yet'));
+              }
+            });
+          });
+        } else {
+          // Already on main page, just show the sync button and focus the tab
+          chrome.tabs.update(tab.id, { active: true }, () => {
+            chrome.tabs.sendMessage(tab.id, { action: 'showSyncButton' })
+              .catch(error => console.log('Tab not ready yet'));
+          });
         }
-      });
+        sendResponse({ status: 'Using existing Instagram tab' });
+      } else {
+        // No Instagram tab open, create new one
+        chrome.tabs.create({ url: 'https://www.instagram.com/' }, (tab) => {
+          // Wait for the page to load before injecting the sync button
+          chrome.tabs.onUpdated.addListener(function listener(tabId, info) {
+            if (tabId === tab.id && info.status === 'complete') {
+              chrome.tabs.onUpdated.removeListener(listener);
+              chrome.tabs.sendMessage(tab.id, { action: 'showSyncButton' })
+                .catch(error => console.log('Tab not ready yet'));
+            }
+          });
+        });
+        sendResponse({ status: 'Created new Instagram tab' });
+      }
     });
-    sendResponse({ status: 'Opening Instagram' });
+    return true; // Keep the message channel open for async response
   } else if (request.action === 'proxyImage') {
     // Proxy the image request
     fetch(request.url, {
@@ -57,30 +80,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 });
 
-// Handle Instagram sync process
-async function handleInstagramSync() {
-  try {
-    // Check if Instagram tab is already open
-    const tabs = await chrome.tabs.query({ url: 'https://www.instagram.com/*' });
-    
-    if (tabs.length > 0) {
-      // Instagram is open, navigate to main page and focus
-      await chrome.tabs.update(tabs[0].id, { 
-        url: 'https://www.instagram.com/',
-        active: true 
-      });
-    } else {
-      // Create new Instagram tab
-      await chrome.tabs.create({ 
-        url: 'https://www.instagram.com/',
-        active: true
-      });
-    }
-  } catch (error) {
-    console.error('Error handling Instagram sync:', error);
-  }
-}
-
 // Listen for messages from content script
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === 'INSTAGRAM_SAVED_POSTS') {
@@ -91,7 +90,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     console.warn('Content script error:', msg.error);
     sendResponse({ status: 'error', error: msg.error });
   }
-  // Return true to indicate async response if needed
 });
 
 // Store new posts in chrome.storage.local
