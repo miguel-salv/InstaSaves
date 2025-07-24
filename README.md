@@ -2,7 +2,11 @@
 
 # InstaSaves
 
-[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![last commit](https://img.shields.io/github/last-commit/miguel-salv/InstaSaves?style=plastic)](https://github.com/miguel-salv/InstaSaves/commits/main)
+[![stars](https://img.shields.io/github/stars/miguel-salv/InstaSaves?style=plastic)](https://github.com/miguel-salv/InstaSaves/stargazers)
+[![forks](https://img.shields.io/github/forks/miguel-salv/InstaSaves?style=plastic)](https://github.com/miguel-salv/InstaSaves/network/members)
+[![issues](https://img.shields.io/github/issues/miguel-salv/InstaSaves?style=plastic)](https://github.com/miguel-salv/InstaSaves/issues)
+[![license](https://img.shields.io/github/license/miguel-salv/InstaSaves?style=plastic)](LICENSE)
 
 </div>
 
