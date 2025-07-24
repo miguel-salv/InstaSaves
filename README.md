@@ -1,4 +1,4 @@
-# <div align="center">
+<div align="center">
 
 # InstaSaves
 
@@ -9,7 +9,6 @@
 A browser extension that enhances your Instagram experience by providing a personal library to save and organize your favorite Instagram content.
 
 ## Table of Contents
-- [Table of Contents](#table-of-contents)
 - [Features](#features)
 - [Tech Stack](#tech-stack)
 - [Installation](#installation)
