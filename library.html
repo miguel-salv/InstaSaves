@@ -14,12 +14,72 @@
     </div>
     <div class="header-actions">
       <input type="text" id="search-input" class="search-input" placeholder="Search saved posts...">
-      <select id="sort-select" class="sort-select">
-        <option value="newest-saved">Recently Saved</option>
-        <option value="oldest-saved">Oldest Saved</option>
-        <option value="newest-posted">Recently Posted</option>
-        <option value="oldest-posted">Oldest Posted</option>
-      </select>
+      
+      <!-- Date Filter Component -->
+      <div class="date-filter-container">
+        <button id="date-filter-toggle" class="date-filter-toggle" title="Filter by date">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"/>
+          </svg>
+          <span id="date-filter-label">All Time</span>
+          <svg class="chevron" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/>
+          </svg>
+        </button>
+        
+        <div id="date-filter-dropdown" class="date-filter-dropdown">
+          <div class="date-filter-presets">
+            <button class="date-preset-btn active" data-preset="all">All Time</button>
+            <button class="date-preset-btn" data-preset="today">Today</button>
+            <button class="date-preset-btn" data-preset="week">Last 7 Days</button>
+            <button class="date-preset-btn" data-preset="month">Last 30 Days</button>
+            <button class="date-preset-btn" data-preset="quarter">Last 3 Months</button>
+            <button class="date-preset-btn" data-preset="year">Last Year</button>
+          </div>
+          
+          <div class="date-filter-custom">
+            <div class="date-filter-title">Custom Range</div>
+            <div class="date-inputs">
+              <div class="date-input-group">
+                <label for="date-from">From:</label>
+                <input type="date" id="date-from" class="date-input">
+              </div>
+              <div class="date-input-group">
+                <label for="date-to">To:</label>
+                <input type="date" id="date-to" class="date-input">
+              </div>
+            </div>
+            <div class="date-filter-actions">
+              <button id="apply-date-filter" class="apply-date-btn">Apply</button>
+              <button id="clear-date-filter" class="clear-date-btn">Clear</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Sort Filter Component -->
+      <div class="sort-filter-container">
+        <button id="sort-filter-toggle" class="sort-filter-toggle" title="Sort posts">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M3 18h6v-2H3v2zM3 6v2h18V6H3zm0 7h12v-2H3v2z"/>
+          </svg>
+          <span id="sort-filter-label">Recently Saved</span>
+          <svg class="chevron" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/>
+          </svg>
+        </button>
+        
+        <div id="sort-filter-dropdown" class="sort-filter-dropdown">
+          <div class="sort-filter-options">
+            <button class="sort-option-btn active" data-sort="newest-saved">Recently Saved</button>
+            <button class="sort-option-btn" data-sort="oldest-saved">Oldest Saved</button>
+            <button class="sort-option-btn" data-sort="newest-posted">Recently Posted</button>
+            <button class="sort-option-btn" data-sort="oldest-posted">Oldest Posted</button>
+          </div>
+        </div>
+      </div>
+      
+      <div class="header-separator"></div>
       <button id="sync-btn" class="sync-btn">Sync with Instagram</button>
       <button id="export-data-btn" class="header-btn">Export Analysis Data</button>
       <button id="clear-data-btn" class="header-btn clear-btn">Clear Data</button>
@@ -44,7 +104,10 @@
         </div>
       </div>
     </aside>
-    <div id="posts-grid" class="posts-grid"></div>
+    <div class="posts-container">
+      <div id="posts-grid" class="posts-grid"></div>
+      <div id="posts-counter" class="posts-counter">0 posts</div>
+    </div>
   </main>
 
   <script src="categories.js"></script>

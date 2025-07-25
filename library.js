@@ -4,6 +4,12 @@ let collections = [];
 let activeCollection = null;
 let activeTags = new Set();
 let activeCategory = null;
+let activeDateFilter = {
+  type: 'all', // 'all', 'preset', 'custom'
+  preset: 'all', // 'all', 'today', 'week', 'month', 'quarter', 'year'
+  customFrom: null,
+  customTo: null
+};
 
 // DOM Elements
 let postsGrid;
@@ -17,6 +23,15 @@ let tagsListEl;
 let categoriesListEl;
 let modal;
 let modalCloseBtn;
+let dateFilterToggle;
+let dateFilterDropdown;
+let dateFilterLabel;
+let dateFromInput;
+let dateToInput;
+let sortFilterToggle;
+let sortFilterDropdown;
+let sortFilterLabel;
+let postsCounter;
 
 // Initialize modal
 function initializeModal() {
@@ -116,17 +131,27 @@ function exportPostsForAnalysis() {
   URL.revokeObjectURL(url);
 }
 
+// Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', async () => {
   // Initialize DOM elements
   postsGrid = document.getElementById('posts-grid');
   searchInput = document.getElementById('search-input');
-  sortSelect = document.getElementById('sort-select');
+  sortSelect = document.getElementById('sort-select'); // Keep for backwards compatibility
   clearDataBtn = document.getElementById('clear-data-btn');
   syncBtn = document.getElementById('sync-btn');
   exportDataBtn = document.getElementById('export-data-btn');
   collectionsListEl = document.getElementById('collections-list');
   tagsListEl = document.getElementById('tags-list');
   categoriesListEl = document.getElementById('categories-list');
+  dateFilterToggle = document.getElementById('date-filter-toggle');
+  dateFilterDropdown = document.getElementById('date-filter-dropdown');
+  dateFilterLabel = document.getElementById('date-filter-label');
+  dateFromInput = document.getElementById('date-from');
+  dateToInput = document.getElementById('date-to');
+  sortFilterToggle = document.getElementById('sort-filter-toggle');
+  sortFilterDropdown = document.getElementById('sort-filter-dropdown');
+  sortFilterLabel = document.getElementById('sort-filter-label');
+  postsCounter = document.getElementById('posts-counter');
 
   // Add keyboard shortcut handler for export button
   document.addEventListener('keydown', (e) => {
@@ -138,8 +163,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   // Verify all elements exist
-  if (!postsGrid || !searchInput || !sortSelect || !clearDataBtn || !syncBtn || !exportDataBtn ||
-      !collectionsListEl || !tagsListEl || !categoriesListEl) {
+  if (!postsGrid || !searchInput || !clearDataBtn || !syncBtn || !exportDataBtn ||
+      !collectionsListEl || !tagsListEl || !categoriesListEl || !dateFilterToggle || 
+      !dateFilterDropdown || !dateFilterLabel || !dateFromInput || !dateToInput ||
+      !sortFilterToggle || !sortFilterDropdown || !sortFilterLabel || !postsCounter) {
     console.error('Some required elements are missing from the DOM');
     return;
   }
@@ -185,18 +212,74 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderPosts();
   });
 
-  sortSelect.addEventListener('change', () => {
-    renderPosts();
+  // Old sort select (for backwards compatibility)
+  if (sortSelect) {
+    sortSelect.addEventListener('change', () => {
+      renderPosts();
+    });
+  }
+
+  // Sort filter event listeners
+  sortFilterToggle.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleSortFilterDropdown();
+  });
+
+  // Sort option buttons
+  document.querySelectorAll('.sort-option-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const sortValue = btn.dataset.sort;
+      setSortOption(sortValue);
+    });
+  });
+
+  // Date filter event listeners
+  dateFilterToggle.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleDateFilterDropdown();
+  });
+
+  // Date preset buttons
+  document.querySelectorAll('.date-preset-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const preset = btn.dataset.preset;
+      setDatePreset(preset);
+    });
+  });
+
+  // Custom date inputs
+  document.getElementById('apply-date-filter').addEventListener('click', () => {
+    applyCustomDateFilter();
+  });
+
+  document.getElementById('clear-date-filter').addEventListener('click', () => {
+    clearDateFilter();
+  });
+
+  // Close dropdowns when clicking outside
+  document.addEventListener('click', (e) => {
+    if (!dateFilterToggle.contains(e.target) && !dateFilterDropdown.contains(e.target)) {
+      closeDateFilterDropdown();
+    }
+    if (!sortFilterToggle.contains(e.target) && !sortFilterDropdown.contains(e.target)) {
+      closeSortFilterDropdown();
+    }
   });
 
   // Add escape key handler
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
       closeModal();
+      closeDateFilterDropdown();
+      closeSortFilterDropdown();
     }
   });
 
-  // Load initial data
+  // Initialize filter labels
+  updateDateFilterLabel();
+  updateSortFilterLabel();
+
+  // Load data
   await loadData();
 });
 
@@ -315,13 +398,28 @@ function renderDates(post) {
   `;
 }
 
+function updatePostsCounter(count) {
+  if (!postsCounter) return;
+  
+  if (count === 0) {
+    postsCounter.textContent = 'No posts';
+  } else if (count === 1) {
+    postsCounter.textContent = '1 post';
+  } else {
+    postsCounter.textContent = `${count} posts`;
+  }
+}
+
 function renderPosts() {
   if (!postsGrid) return;
 
   let filteredPosts = getFilteredPosts();
+  
+  // Update counter
+  updatePostsCounter(filteredPosts.length);
 
   // Sort posts
-  const sortValue = sortSelect.value;
+  const sortValue = currentSortValue; // Use the global sort value instead of select
   switch (sortValue) {
     case 'newest-saved':
       filteredPosts = [...filteredPosts]; // Keep original order (newest first)
@@ -339,11 +437,18 @@ function renderPosts() {
 
   // Show empty state if no posts
   if (filteredPosts.length === 0) {
-    if (searchInput.value || activeTags.size > 0 || activeCollection || activeCategory) {
+    if (searchInput.value || activeTags.size > 0 || activeCollection || activeCategory || activeDateFilter.type !== 'all') {
       // No results for filters
+      const activeFilters = [];
+      if (searchInput.value) activeFilters.push('search');
+      if (activeTags.size > 0) activeFilters.push('tags');
+      if (activeCollection) activeFilters.push('collection');
+      if (activeCategory) activeFilters.push('category');
+      if (activeDateFilter.type !== 'all') activeFilters.push('date range');
+      
       postsGrid.innerHTML = `
         <div class="empty-state">
-          No posts match your current filters. Try adjusting your search criteria or clearing filters.
+          No posts match your current filters (${activeFilters.join(', ')}). Try adjusting your search criteria or clearing filters.
         </div>
       `;
     } else {
@@ -724,18 +829,27 @@ function renderTags() {
 function renderCategories() {
   if (!categoriesListEl) return;
 
+  // Ensure posts array exists
+  if (!Array.isArray(posts)) {
+    console.warn('Posts array is not initialized');
+    return;
+  }
+
   // Get category counts from posts
   const categoryCounts = {};
   posts.forEach(post => {
+    if (!post) return;
     // Ensure post.categories is an array
     const postCategories = Array.isArray(post.categories) ? post.categories : [];
     postCategories.forEach(category => {
-      categoryCounts[category] = (categoryCounts[category] || 0) + 1;
+      if (category) {  // Only count valid category strings
+        categoryCounts[category] = (categoryCounts[category] || 0) + 1;
+      }
     });
   });
 
   // Get search value
-  const searchValue = document.getElementById('category-search')?.value.toLowerCase() || '';
+  const searchValue = document.getElementById('category-search')?.value?.toLowerCase() || '';
 
   // Create title container and search input if they don't exist
   let titleContainer = categoriesListEl.closest('.sidebar-section')?.querySelector('.sidebar-title-container');
@@ -945,6 +1059,271 @@ function closeModal() {
   document.body.style.overflow = '';
 } 
 
+// Date filter functions
+function toggleDateFilterDropdown() {
+  const isActive = dateFilterDropdown.classList.contains('active');
+  if (isActive) {
+    closeDateFilterDropdown();
+  } else {
+    openDateFilterDropdown();
+  }
+}
+
+function openDateFilterDropdown() {
+  // Close sort filter dropdown if open
+  closeSortFilterDropdown();
+  
+  dateFilterDropdown.classList.add('active');
+  dateFilterToggle.classList.add('active');
+}
+
+function closeDateFilterDropdown() {
+  dateFilterDropdown.classList.remove('active');
+  dateFilterToggle.classList.remove('active');
+}
+
+function setDatePreset(preset) {
+  // Clear active state from all preset buttons
+  document.querySelectorAll('.date-preset-btn').forEach(btn => {
+    btn.classList.remove('active');
+  });
+  
+  // Set active state on clicked button
+  document.querySelector(`[data-preset="${preset}"]`).classList.add('active');
+  
+  // Update active date filter
+  activeDateFilter = {
+    type: preset === 'all' ? 'all' : 'preset',
+    preset: preset,
+    customFrom: null,
+    customTo: null
+  };
+  
+  // Clear custom date inputs
+  dateFromInput.value = '';
+  dateToInput.value = '';
+  
+  // Update label and close dropdown
+  updateDateFilterLabel();
+  closeDateFilterDropdown();
+  renderPosts();
+}
+
+function applyCustomDateFilter() {
+  const fromDate = dateFromInput.value;
+  const toDate = dateToInput.value;
+  
+  if (!fromDate && !toDate) {
+    alert('Please select at least one date');
+    return;
+  }
+  
+  // Clear preset active states
+  document.querySelectorAll('.date-preset-btn').forEach(btn => {
+    btn.classList.remove('active');
+  });
+  
+  // Helper function to create a date in local timezone
+  const createLocalDate = (dateStr, isEndOfDay = false) => {
+    if (!dateStr) return null;
+    const [year, month, day] = dateStr.split('-').map(Number);
+    if (isEndOfDay) {
+      return new Date(year, month - 1, day, 23, 59, 59, 999);
+    }
+    return new Date(year, month - 1, day, 0, 0, 0, 0);
+  };
+  
+  // Update active date filter
+  activeDateFilter = {
+    type: 'custom',
+    preset: null,
+    customFrom: createLocalDate(fromDate),
+    customTo: createLocalDate(toDate, true)
+  };
+  
+  // Update label and close dropdown
+  updateDateFilterLabel();
+  closeDateFilterDropdown();
+  renderPosts();
+}
+
+function clearDateFilter() {
+  // Reset to "All Time"
+  setDatePreset('all');
+}
+
+function updateDateFilterLabel() {
+  let label = 'All Time';
+  let hasFilter = false;
+  
+  if (activeDateFilter.type === 'preset' && activeDateFilter.preset !== 'all') {
+    const presetLabels = {
+      'today': 'Today',
+      'week': 'Last 7 Days',
+      'month': 'Last 30 Days',
+      'quarter': 'Last 3 Months',
+      'year': 'Last Year'
+    };
+    label = presetLabels[activeDateFilter.preset] || 'All Time';
+    hasFilter = true;
+  } else if (activeDateFilter.type === 'custom') {
+    const formatDate = (date) => {
+      if (!date) return null;
+      // Create a new date using local timezone components
+      const localDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+      return localDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    };
+
+    const fromStr = activeDateFilter.customFrom ? formatDate(activeDateFilter.customFrom) : 'Start';
+    const toStr = activeDateFilter.customTo ? formatDate(activeDateFilter.customTo) : 'End';
+    label = `${fromStr} - ${toStr}`;
+    hasFilter = true;
+  }
+  
+  dateFilterLabel.textContent = label;
+  
+  // Update visual indicator
+  if (hasFilter) {
+    dateFilterToggle.classList.add('has-filter');
+  } else {
+    dateFilterToggle.classList.remove('has-filter');
+  }
+}
+
+function getDateRange(preset) {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  
+  switch (preset) {
+    case 'today':
+      return {
+        from: today,
+        to: new Date(today.getTime() + 24 * 60 * 60 * 1000 - 1) // End of day
+      };
+    case 'week':
+      return {
+        from: new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000),
+        to: new Date(today.getTime() + 24 * 60 * 60 * 1000 - 1) // End of today
+      };
+    case 'month':
+      return {
+        from: new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000),
+        to: new Date(today.getTime() + 24 * 60 * 60 * 1000 - 1) // End of today
+      };
+    case 'quarter':
+      return {
+        from: new Date(today.getTime() - 90 * 24 * 60 * 60 * 1000),
+        to: new Date(today.getTime() + 24 * 60 * 60 * 1000 - 1) // End of today
+      };
+    case 'year':
+      return {
+        from: new Date(today.getTime() - 365 * 24 * 60 * 60 * 1000),
+        to: new Date(today.getTime() + 24 * 60 * 60 * 1000 - 1) // End of today
+      };
+    default:
+      return { from: null, to: null };
+  }
+}
+
+function filterPostsByDate(posts) {
+  if (activeDateFilter.type === 'all') {
+    return posts;
+  }
+  
+  let dateRange;
+  
+  if (activeDateFilter.type === 'preset') {
+    dateRange = getDateRange(activeDateFilter.preset);
+  } else if (activeDateFilter.type === 'custom') {
+    dateRange = {
+      from: activeDateFilter.customFrom,
+      to: activeDateFilter.customTo
+    };
+  }
+  
+  if (!dateRange.from && !dateRange.to) {
+    return posts;
+  }
+  
+  return posts.filter(post => {
+    // Use createdAt for filtering (when the post was originally posted)
+    const postDate = new Date(post.createdAt);
+    
+    // Skip posts without a valid creation date
+    if (!post.createdAt || isNaN(postDate.getTime())) {
+      return false;
+    }
+    
+    if (dateRange.from && postDate < dateRange.from) {
+      return false;
+    }
+    
+    if (dateRange.to && postDate > dateRange.to) {
+      return false;
+    }
+    
+    return true;
+  });
+}
+
+// Sort filter functions
+let currentSortValue = 'newest-saved';
+
+function toggleSortFilterDropdown() {
+  const isActive = sortFilterDropdown.classList.contains('active');
+  if (isActive) {
+    closeSortFilterDropdown();
+  } else {
+    openSortFilterDropdown();
+  }
+}
+
+function openSortFilterDropdown() {
+  // Close date filter dropdown if open
+  closeDateFilterDropdown();
+  
+  sortFilterDropdown.classList.add('active');
+  sortFilterToggle.classList.add('active');
+}
+
+function closeSortFilterDropdown() {
+  sortFilterDropdown.classList.remove('active');
+  sortFilterToggle.classList.remove('active');
+}
+
+function setSortOption(sortValue) {
+  // Clear active state from all sort buttons
+  document.querySelectorAll('.sort-option-btn').forEach(btn => {
+    btn.classList.remove('active');
+  });
+  
+  // Set active state on clicked button
+  document.querySelector(`[data-sort="${sortValue}"]`).classList.add('active');
+  
+  // Update current sort value
+  currentSortValue = sortValue;
+  
+  // Update label
+  updateSortFilterLabel();
+  
+  // Close dropdown
+  closeSortFilterDropdown();
+  
+  // Re-render posts with new sort
+  renderPosts();
+}
+
+function updateSortFilterLabel() {
+  const sortLabels = {
+    'newest-saved': 'Recently Saved',
+    'oldest-saved': 'Oldest Saved',
+    'newest-posted': 'Recently Posted',
+    'oldest-posted': 'Oldest Posted'
+  };
+  
+  sortFilterLabel.textContent = sortLabels[currentSortValue] || 'Recently Saved';
+}
+
 // Add after loadData function
 async function analyzePostContent(post) {
   const textToAnalyze = [
@@ -959,20 +1338,11 @@ async function analyzePostContent(post) {
   const categoryScores = Object.entries(categories).map(([categoryName, categoryData]) => {
     let score = 0;
     
-    // Check main category keywords
+    // Check category keywords
     categoryData.keywords.forEach(keyword => {
       const regex = new RegExp(`\\b${keyword}\\b`, 'gi');
       const matches = textToAnalyze.match(regex) || [];
       score += matches.length;
-    });
-    
-    // Check subcategory keywords
-    Object.entries(categoryData.subcategories).forEach(([subcategoryName, keywords]) => {
-      keywords.forEach(keyword => {
-        const regex = new RegExp(`\\b${keyword}\\b`, 'gi');
-        const matches = textToAnalyze.match(regex) || [];
-        score += matches.length;
-      });
     });
     
     return { categoryName, score };
@@ -990,6 +1360,9 @@ async function analyzePostContent(post) {
 // Modify the existing renderPosts function to include category filtering
 function getFilteredPosts() {
   let filtered = [...posts];
+
+  // Filter by date first
+  filtered = filterPostsByDate(filtered);
 
   // Filter by category
   if (activeCategory) {
@@ -1030,18 +1403,27 @@ function getFilteredPosts() {
 function renderCategories() {
   if (!categoriesListEl) return;
 
+  // Ensure posts array exists
+  if (!Array.isArray(posts)) {
+    console.warn('Posts array is not initialized');
+    return;
+  }
+
   // Get category counts from posts
   const categoryCounts = {};
   posts.forEach(post => {
+    if (!post) return;
     // Ensure post.categories is an array
     const postCategories = Array.isArray(post.categories) ? post.categories : [];
     postCategories.forEach(category => {
-      categoryCounts[category] = (categoryCounts[category] || 0) + 1;
+      if (category) {  // Only count valid category strings
+        categoryCounts[category] = (categoryCounts[category] || 0) + 1;
+      }
     });
   });
 
   // Get search value
-  const searchValue = document.getElementById('category-search')?.value.toLowerCase() || '';
+  const searchValue = document.getElementById('category-search')?.value?.toLowerCase() || '';
 
   // Create title container and search input if they don't exist
   let titleContainer = categoriesListEl.closest('.sidebar-section')?.querySelector('.sidebar-title-container');

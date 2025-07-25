@@ -48,12 +48,13 @@ async function injectSyncButton() {
       <h2 style="
         margin: 0 0 16px 0;
         font-size: 20px;
-        background: linear-gradient(45deg, #fa7e1e, #d62976, #962fbf);
+        background: linear-gradient(135deg, #e674a7 0%, #fa7e1e 50%, #d62976 100%);
         -webkit-background-clip: text;
         background-clip: text;
         -webkit-text-fill-color: transparent;
-        font-weight: 600;
-      ">InstaSave</h2>
+        font-weight: 700;
+        letter-spacing: -0.5px;
+      ">InstaSaves</h2>
       <p style="
         margin: 0 0 20px 0;
         color: #8899a6;
@@ -61,7 +62,7 @@ async function injectSyncButton() {
         line-height: 1.4;
       ">Ready to sync your saved posts? This will fetch all your saved posts and collections.</p>
       <button id="start-sync-btn" style="
-        background: linear-gradient(45deg, #fa7e1e, #d62976, #962fbf);
+        background: linear-gradient(135deg, #e674a7 0%, #fa7e1e 50%, #d62976 100%);
         color: white;
         border: none;
         border-radius: 6px;
@@ -132,7 +133,7 @@ async function startSync() {
         display: none;
       ">
         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
-          <h3 style="margin: 0; font-size: 16px; background: linear-gradient(45deg, #fa7e1e, #d62976, #962fbf); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;">InstaSave Sync</h3>
+          <h3 style="margin: 0; font-size: 16px; background: linear-gradient(135deg, #e674a7 0%, #fa7e1e 50%, #d62976 100%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; font-weight: 700; letter-spacing: -0.5px;">InstaSaves Sync</h3>
           <div id="instasaves-spinner" style="
             width: 20px;
             height: 20px;
