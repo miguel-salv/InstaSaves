@@ -5,9 +5,7 @@
   "description": "Save and organize your Instagram posts with categories and collections. Access your saved content offline with smart categorization.",
   "permissions": [
     "storage",
-    "tabs",
-    "scripting",
-    "webRequest"
+    "tabs"
   ],
   "host_permissions": [
     "https://www.instagram.com/*",
